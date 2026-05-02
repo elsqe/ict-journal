@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>ICT Trading Journal</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:#0a0a0f;color:#e8e0d0;font-family:'Georgia',serif;min-height:100vh;}
+  .header{background:linear-gradient(135deg,#0d0d18,#12121f);border-bottom:1px solid #1e1e35;padding:18px 32px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;}
+  .logo{font-family:'Playfair Display',serif;font-size:22px;font-weight:700;color:#c9a84c;letter-spacing:1px;}
+  .logo span{color:#6b8f71;}
+  .nav{display:flex;gap:4px;flex-wrap:wrap;}
+  .nav-btn{background:none;border:1px solid transparent;color:#888;font-family:'JetBrains Mono',monospace;font-size:11px;padding:7px 14px;border-radius:6px;cursor:pointer;transition:all .2s;letter-spacing:1px;text-transform:uppercase;}
+  .nav-btn.active{background:#c9a84c22;color:#c9a84c;border-color:#c9a84c44;}
+  .nav-btn:hover{color:#c9a84c;background:#c9a84c11;}
+  .save-status{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;min-width:100px;text-align:right;}
+  .save-saving{color:#888;} .save-saved{color:#6bc47a;} .save-error{color:#c46b6b;}
+  .container{max-width:1100px;margin:0 auto;padding:28px 16px;}
+  .card{background:#10101a;border:1px solid #1e1e35;border-radius:12px;padding:22px;}
+  .stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:14px;margin-bottom:24px;}
+  .stat{background:#10101a;border:1px solid #1e1e35;border-radius:10px;padding:16px;text-align:center;}
+  .stat-val{font-family:'JetBrains Mono',monospace;font-size:26px;font-weight:500;color:#c9a84c;}
+  .stat-val.green{color:#6bc47a;} .stat-val.red{color:#c46b6b;}
+  .stat-label{font-family:'JetBrains Mono',monospace;font-size:9px;color:#555;letter-spacing:2px;text-transform:uppercase;margin-top:4px;}
+  .win-bar{height:5px;background:#1e1e35;border-radius:4px;overflow:hidden;margin-top:6px;}
+  .win-bar-fill{height:100%;border-radius:4px;background:linear-gradient(90deg,#6bc47a,#c9a84c);transition:width .6s;}
+  .section-title{font-family:'Playfair Display',serif;font-size:19px;color:#c9a84c;margin-bottom:18px;border-bottom:1px solid #1e1e35;padding-bottom:9px;}
+  .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  .field{display:flex;flex-direction:column;gap:5px;}
+  .field label{font-family:'JetBrains Mono',monospace;font-size:9px;color:#666;text-transform:uppercase;letter-spacing:2px;}
+  .field input,.field select,.field textarea{background:#0a0a12;border:1px solid #222238;border-radius:8px;color:#e8e0d0;font-family:'JetBrains Mono',monospace;font-size:13px;padding:9px 11px;outline:none;transition:border .2s;width:100%;}
+  .field input:focus,.field select:focus,.field textarea:focus{border-color:#c9a84c55;}
+  .field select option{background:#12121f;}
+  .field input[readonly]{color:#c9a84c;}
+  .btn-primary{background:linear-gradient(135deg,#c9a84c,#a8882a);border:none;color:#0a0a0f;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;padding:11px 24px;border-radius:8px;cursor:pointer;letter-spacing:2px;text-transform:uppercase;transition:opacity .2s;}
+  .btn-primary:hover{opacity:.85;}
+  .btn-ghost{background:none;border:1px solid #1e1e35;color:#888;font-family:'JetBrains Mono',monospace;font-size:10px;padding:6px 12px;border-radius:6px;cursor:pointer;letter-spacing:1px;transition:all .2s;}
+  .btn-ghost:hover{border-color:#c9a84c44;color:#c9a84c;}
+  .btn-danger{border-color:#c46b6b33;color:#c46b6b;}
+  .tag-row{display:flex;flex-wrap:wrap;gap:7px;margin-top:5px;}
+  .tag{background:#16162a;border:1px solid #222238;border-radius:20px;color:#888;font-family:'JetBrains Mono',monospace;font-size:11px;padding:4px 11px;cursor:pointer;transition:all .2s;user-select:none;}
+  .tag.selected{background:#c9a84c22;color:#c9a84c;border-color:#c9a84c55;}
+  .toggle-wrap{display:flex;align-items:center;gap:8px;cursor:pointer;}
+  .toggle-track{width:36px;height:19px;background:#222;border-radius:20px;position:relative;transition:background .2s;border:1px solid transparent;flex-shrink:0;}
+  .toggle-track.on{background:#6bc47a33;border-color:#6bc47a66;}
+  .toggle-thumb{width:13px;height:13px;background:#555;border-radius:50%;position:absolute;top:3px;left:3px;transition:all .2s;}
+  .toggle-thumb.on{left:20px;background:#6bc47a;}
+  .toggle-label{font-family:'JetBrains Mono',monospace;font-size:11px;color:#888;}
+  .trade-table{width:100%;border-collapse:collapse;}
+  .trade-table th{font-family:'JetBrains Mono',monospace;font-size:9px;color:#555;text-transform:uppercase;letter-spacing:2px;padding:10px 14px;text-align:left;border-bottom:1px solid #1e1e35;}
+  .trade-table td{font-family:'JetBrains Mono',monospace;font-size:12px;padding:12px 14px;border-bottom:1px solid #14141e;vertical-align:middle;}
+  .trade-table tr:hover td{background:#12121e;}
+  .badge{display:inline-block;padding:3px 9px;border-radius:20px;font-size:9px;font-family:'JetBrains Mono',monospace;font-weight:600;letter-spacing:1px;}
+  .badge-win{background:#6bc47a22;color:#6bc47a;border:1px solid #6bc47a44;}
+  .badge-loss{background:#c46b6b22;color:#c46b6b;border:1px solid #c46b6b44;}
+  .badge-be{background:#c9a84c22;color:#c9a84c;border:1px solid #c9a84c44;}
+  .empty{text-align:center;padding:50px 20px;color:#444;font-family:'JetBrains Mono',monospace;font-size:13px;}
+  .filter-row{display:flex;gap:7px;margin-bottom:14px;flex-wrap:wrap;align-items:center;}
+  .filter-label{font-family:'JetBrains Mono',monospace;font-size:10px;color:#555;margin-right:2px;}
+  .recent-trade{display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-bottom:1px solid #14141e;}
+  .recent-trade:last-child{border-bottom:none;}
+  .mb16{margin-bottom:16px;} .mb20{margin-bottom:20px;} .mt8{margin-top:8px;}
+  .flex-between{display:flex;align-items:center;justify-content:space-between;}
+  .flex-gap{display:flex;gap:8px;align-items:center;}
+  @media(max-width:600px){.form-grid{grid-template-columns:1fr;}.trade-table th:nth-child(n+4),.trade-table td:nth-child(n+4){display:none;}}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">ICT <span>Journal</span></div>
+  <nav class="nav">
+    <button class="nav-btn active" onclick="showView('dashboard')">📊 Dashboard</button>
+    <button class="nav-btn" onclick="showView('new')">✏️ Trade erfassen</button>
+    <button class="nav-btn" onclick="showView('log')">📋 Trade Log</button>
+  </nav>
+  <div id="saveStatus" class="save-status"></div>
+</div>
+
+<div class="container">
+  <div id="view-dashboard"></div>
+  <div id="view-new" style="display:none"></div>
+  <div id="view-log" style="display:none"></div>
+</div>
+
+<script>
+const STORAGE_KEY = 'ict-journal-trades';
+const SESSIONS = ['London','New York','Asian','London/NY Overlap'];
+const SETUPS = ['Order Block','Fair Value Gap (FVG)','Breaker Block','Mitigation Block','Liquidity Sweep','Optimal Trade Entry (OTE)','Power of 3','CISD','Market Structure Shift (MSS)','Displacement'];
+const BIAS = ['Bullish','Bearish','Neutral'];
+const PAIRS = ['EURUSD','GBPUSD','USDJPY','XAUUSD','NAS100','US30','GBPJPY','AUDUSD','Andere'];
+const EMOTIONS = ['😤 FOMO','😰 Angst','🧘 Ruhig','🤑 Gierig','😤 Ungeduldig','💪 Diszipliniert'];
+const RESULTS = ['Win','Loss','Breakeven','Offen'];
+
+let trades = [];
+let currentView = 'dashboard';
+let editId = null;
+let filterPair = 'all';
+let form = freshForm();
+let followedRules = true;
+
+function freshForm() {
+  return {date:new Date().toISOString().slice(0,10),pair:'',bias:'',session:'',setup:'',entry:'',sl:'',tp:'',rr:'',result:'',pnl:'',notes:'',emotions:''};
+}
+
+// Storage
+function loadTrades() {
+  try { trades = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch(e) { trades = []; }
+}
+function saveTrades() {
+  setSaveStatus('saving');
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(trades));
+    setSaveStatus('saved');
+    setTimeout(() => setSaveStatus(''), 2000);
+  } catch(e) { setSaveStatus('error'); }
+}
+function setSaveStatus(s) {
+  const el = document.getElementById('saveStatus');
+  el.className = 'save-status' + (s ? ' save-'+s : '');
+  el.textContent = s === 'saving' ? '⏳ Speichern…' : s === 'saved' ? '✓ Gespeichert' : s === 'error' ? '✗ Fehler' : '';
+}
+
+// Navigation
+function showView(v) {
+  currentView = v;
+  ['dashboard','new','log'].forEach(n => {
+< truncated lines 130-188 >
+// Form
+function renderForm() {
+  document.getElementById('view-new').innerHTML = `
+    <div class="card">
+      <div class="section-title">${editId !== null ? 'Trade bearbeiten' : 'Neuen Trade erfassen'}</div>
+      <div class="form-grid mb20">
+        <div class="field"><label>Datum</label><input type="date" id="f-date" value="${form.date}" oninput="form.date=this.value"/></div>
+        <div class="field"><label>Pair / Instrument</label><select id="f-pair" onchange="form.pair=this.value">
+          <option value="">— wählen —</option>${PAIRS.map(p=>`<option${form.pair===p?' selected':''}>${p}</option>`).join('')}
+        </select></div>
+        <div class="field"><label>Bias</label><select id="f-bias" onchange="form.bias=this.value">
+          <option value="">— wählen —</option>${BIAS.map(b=>`<option${form.bias===b?' selected':''}>${b}</option>`).join('')}
+        </select></div>
+        <div class="field"><label>Session</label><select id="f-session" onchange="form.session=this.value">
+          <option value="">— wählen —</option>${SESSIONS.map(s=>`<option${form.session===s?' selected':''}>${s}</option>`).join('')}
+        </select></div>
+      </div>
+
+      <div class="field mb16">
+        <label>ICT Setup</label>
+        <div class="tag-row">${SETUPS.map(s=>`<div class="tag${form.setup===s?' selected':''}" onclick="selectSetup('${s}')">${s}</div>`).join('')}</div>
+      </div>
+
+      <div class="form-grid mb20">
+        <div class="field"><label>Entry</label><input type="number" step="0.00001" placeholder="z.B. 1.09450" value="${form.entry}" oninput="form.entry=this.value;calcRR()"/></div>
+        <div class="field"><label>Stop Loss</label><input type="number" step="0.00001" placeholder="z.B. 1.09200" value="${form.sl}" oninput="form.sl=this.value;calcRR()"/></div>
+        <div class="field"><label>Take Profit</label><input type="number" step="0.00001" placeholder="z.B. 1.09900" value="${form.tp}" oninput="form.tp=this.value;calcRR()"/></div>
+        <div class="field"><label>R:R (auto)</label><input id="rr-display" readonly value="${form.rr ? '1 : '+form.rr : ''}"/></div>
+        <div class="field"><label>Ergebnis</label><select onchange="form.result=this.value">
+          <option value="">— wählen —</option>${RESULTS.map(r=>`<option${form.result===r?' selected':''}>${r}</option>`).join('')}
+        </select></div>
+        <div class="field"><label>P&L in R</label><input type="number" step="0.01" placeholder="z.B. 2.5 oder -1" value="${form.pnl}" oninput="form.pnl=this.value"/></div>
+      </div>
+
+      <div class="field mb16">
+        <label>Emotionen</label>
+        <div class="tag-row">${EMOTIONS.map(em=>`<div class="tag${form.emotions===em?' selected':''}" onclick="selectEmotion('${em}')">${em}</div>`).join('')}</div>
+      </div>
+
+      <div class="field mb16">
+        <label>Notizen & Analyse</label>
+        <textarea rows="4" placeholder="Warum dieser Trade? Was lief gut, was schlecht?" oninput="form.notes=this.value" style="resize:vertical">${form.notes}</textarea>
+      </div>
+
+      <div class="flex-between mt8">
+        <div class="toggle-wrap" onclick="toggleRules()">
+          <div class="toggle-track${followedRules?' on':''}" id="toggle-track">
+            <div class="toggle-thumb${followedRules?' on':''}" id="toggle-thumb"></div>
+          </div>
+          <span class="toggle-label">ICT-Regeln befolgt</span>
+        </div>
+        <div class="flex-gap">
+          ${editId !== null ? `<button class="btn-ghost" onclick="cancelEdit()">Abbrechen</button>` : ''}
+          <button class="btn-primary" onclick="submitTrade()">${editId !== null ? 'Speichern' : 'Trade hinzufügen'}</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function selectSetup(s) { form.setup = s; renderForm(); }
+function selectEmotion(em) { form.emotions = em; renderForm(); }
+function toggleRules() { followedRules = !followedRules; document.getElementById('toggle-track').className='toggle-track'+(followedRules?' on':''); document.getElementById('toggle-thumb').className='toggle-thumb'+(followedRules?' on':''); }
+function calcRR() {
+  const e=parseFloat(form.entry),s=parseFloat(form.sl),t=parseFloat(form.tp);
+  if(e&&s&&t){const risk=Math.abs(e-s),reward=Math.abs(t-e);form.rr=risk>0?(reward/risk).toFixed(2):'';} else{form.rr='';}
+  const el=document.getElementById('rr-display'); if(el) el.value=form.rr?'1 : '+form.rr:'';
+}
+function cancelEdit() { editId=null; form=freshForm(); followedRules=true; renderForm(); }
+
+function submitTrade() {
+  // collect latest select values
+  ['pair','bias','session','result'].forEach(k => { const el=document.getElementById('f-'+k); if(el) form[k]=el.value; });
+  if(!form.pair||!form.setup||!form.date) { alert('Bitte Datum, Pair und Setup angeben.'); return; }
+  const trade = {...form, followed_rules: followedRules, id: editId !== null ? editId : Date.now()};
+  if(editId !== null) { trades = trades.map(t => t.id===editId ? trade : t); editId=null; }
+  else { trades.push(trade); }
+  form = freshForm(); followedRules = true;
+  saveTrades();
+  showView('log');
+}
+
+// Log
+function renderLog() {
+  const filtered = filterPair === 'all' ? trades : trades.filter(t => t.pair === filterPair);
+  document.getElementById('view-log').innerHTML = `
+    <div class="filter-row">
+      <span class="filter-label">Filter:</span>
+      ${['all',...PAIRS].map(p=>`<div class="tag${filterPair===p?' selected':''}" onclick="setFilter('${p}')">${p==='all'?'Alle':p}</div>`).join('')}
+    </div>
+    <div class="card" style="padding:0;overflow:hidden">
+      ${!filtered.length ? '<div class="empty">Keine Trades gefunden.</div>' : `
+        <table class="trade-table">
+          <thead><tr><th>Datum</th><th>Pair</th><th>Setup</th><th>Session</th><th>R:R</th><th>P&L</th><th>Result</th><th></th></tr></thead>
+          <tbody>${[...filtered].reverse().map(t => `
+            <tr>
+              <td style="color:#666">${t.date}</td>
+              <td style="color:#c9a84c;font-weight:500">${t.pair}</td>
+              <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.setup}</td>
+              <td style="color:#666;font-size:11px">${t.session||'—'}</td>
+              <td style="color:#888">${t.rr?'1:'+t.rr:'—'}</td>
+              <td style="color:${parseFloat(t.pnl)>=0?'#6bc47a':'#c46b6b'}">${t.pnl?(parseFloat(t.pnl)>=0?'+':'')+t.pnl+'R':'—'}</td>
+              <td>${badgeHtml(t.result)}</td>
+              <td><div class="flex-gap">
+                <button class="btn-ghost" style="padding:4px 7px;font-size:10px" onclick="startEdit(${t.id})">✏️</button>
+                <button class="btn-ghost btn-danger" style="padding:4px 7px;font-size:10px" onclick="deleteTrade(${t.id})">🗑</button>
+              </div></td>
+            </tr>`).join('')}
+          </tbody>
+        </table>`}
+    </div>`;
+}
+
+function setFilter(p) { filterPair = p; renderLog(); }
+function deleteTrade(id) { if(!confirm('Trade löschen?')) return; trades=trades.filter(t=>t.id!==id); saveTrades(); renderLog(); if(currentView==='dashboard') renderDashboard(); }
+function startEdit(id) {
+  const t = trades.find(tr => tr.id===id);
+  if(!t) return;
+  form = {...t}; editId = id; followedRules = t.followed_rules !== false;
+  showView('new');
+}
+
+// Init
+document.addEventListener('DOMContentLoaded', function() {
+  loadTrades();
+  renderDashboard();
+});
+</script>
+</body>
+</html>
