@@ -4,6 +4,9 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>ICT Trading Journal</title>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="ICT Journal"/>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet"/>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
@@ -101,6 +104,33 @@ tr:hover td{background:#12121e;}
 .exim-btn:hover{border-color:#c9a84c44;color:#c9a84c;}
 .exim-btn.imp{border-color:#6bc47a33;color:#6bc47a;}
 .exim-btn.imp:hover{background:#6bc47a11;}
+
+/* Rating Stars */
+.stars{display:flex;gap:4px;margin-top:4px;}
+.star{font-size:20px;cursor:pointer;opacity:0.3;transition:opacity 0.1s;}
+.star.on{opacity:1;}
+
+/* Screenshot */
+.sc-wrap{border:2px dashed #222238;border-radius:8px;padding:16px;text-align:center;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:11px;color:#555;transition:border-color 0.2s;}
+.sc-wrap:hover{border-color:#c9a84c44;color:#c9a84c;}
+.sc-preview{max-width:100%;border-radius:8px;margin-top:8px;display:block;}
+
+/* Goals */
+.goal-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #14141e;}
+.goal-row:last-child{border:none;}
+.goal-label{font-family:'JetBrains Mono',monospace;font-size:11px;color:#888;flex:1;}
+.goal-prog{flex:2;height:6px;background:#1e1e35;border-radius:4px;overflow:hidden;}
+.goal-fill{height:100%;border-radius:4px;background:linear-gradient(90deg,#c9a84c,#6bc47a);}
+.goal-val{font-family:'JetBrains Mono',monospace;font-size:11px;color:#c9a84c;min-width:60px;text-align:right;}
+.goal-input{background:#0a0a12;border:1px solid #222238;border-radius:6px;color:#e8e0d0;font-family:'JetBrains Mono',monospace;font-size:12px;padding:4px 8px;width:70px;}
+
+/* Weekly Review */
+.week-nav{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
+.week-nav button{background:none;border:1px solid #1e1e35;color:#888;font-family:'JetBrains Mono',monospace;font-size:11px;padding:4px 10px;border-radius:6px;cursor:pointer;}
+.week-nav span{font-family:'JetBrains Mono',monospace;font-size:12px;color:#c9a84c;flex:1;text-align:center;}
+.week-day{background:#0a0a12;border-radius:8px;padding:10px 12px;margin-bottom:8px;}
+.week-day-header{font-family:'JetBrains Mono',monospace;font-size:10px;color:#555;margin-bottom:6px;letter-spacing:1px;}
+.review-ta{background:#0a0a12;border:1px solid #222238;border-radius:8px;color:#e8e0d0;font-family:'JetBrains Mono',monospace;font-size:12px;padding:8px 10px;width:100%;resize:vertical;outline:none;min-height:80px;}
 </style>
 </head>
 <body>
@@ -112,6 +142,8 @@ tr:hover td{background:#12121e;}
     <button class="nb" id="btn-log" onclick="go('log')">📋 Log</button>
     <button class="nb" id="btn-stats" onclick="go('stats')">🔍 Statistiken</button>
     <button class="nb" id="btn-equity" onclick="go('equity')">📈 Equity</button>
+    <button class="nb" id="btn-review" onclick="go('review')">📅 Review</button>
+    <button class="nb" id="btn-goals" onclick="go('goals')">🎯 Ziele</button>
   </div>
   <div id="ss" class="ss"></div>
 </div>
@@ -121,7 +153,10 @@ tr:hover td{background:#12121e;}
   <div id="log" style="display:none"></div>
   <div id="stats" style="display:none"></div>
   <div id="equity" style="display:none"></div>
+  <div id="review" style="display:none"></div>
+  <div id="goals" style="display:none"></div>
   <input type="file" id="imp-file" accept=".json" style="display:none" onchange="importJSON(this)"/>
+  <input type="file" id="sc-file" accept="image/*" style="display:none" onchange="loadScreenshot(this)"/>
 </div>
 
 <script>
@@ -131,12 +166,14 @@ var SETS=['Order Block','Fair Value Gap (FVG)','Breaker Block','Mitigation Block
 var BIAS=['Bullish','Bearish','Neutral'];
 var PAIRS=['EURUSD','GBPUSD','USDJPY','XAUUSD','NAS100','US30','GBPJPY','AUDUSD','Andere'];
 var EMOS=['😤 FOMO','😰 Angst','🧘 Ruhig','🤑 Gierig','😤 Ungeduldig','💪 Diszipliniert'];
+var GOALS_KEY='ict-goals-v1';
+var REVIEW_KEY='ict-review-v1';
 var fm={};
 var currentTf='D';
 var tfMap={D:'D',H4:'240',H1:'60',M15:'15',M5:'5'};
+var weekOffset=0;
 
-function nf(){return{date:new Date().toISOString().slice(0,10),pair:'',bias:'',session:'',setup:'',entry:'',sl:'',tp:'',rr:'',result:'',pnl:'',notes:'',emotions:''};}
-function load(){try{trades=JSON.parse(localStorage.getItem(KEY)||'[]');}catch(e){trades=[];}}
+function nf(){return{date:new Date().toISOString().slice(0,10),pair:'',bias:'',session:'',setup:'',entry:'',sl:'',tp:'',rr:'',result:'',pnl:'',notes:'',emotions:'',rating:0,screenshot:''};}function load(){try{trades=JSON.parse(localStorage.getItem(KEY)||'[]');}catch(e){trades=[];}}
 function save(){
   var el=document.getElementById('ss');
   el.className='ss sv2';el.textContent='⏳ Speichern…';
@@ -146,7 +183,7 @@ function save(){
 
 function go(v){
   cur=v;
-  ['dashboard','new','log','stats','equity'].forEach(function(n){
+  ['dashboard','new','log','stats','equity','review','goals'].forEach(function(n){
     document.getElementById(n).style.display=n===v?'':'none';
     var b=document.getElementById('btn-'+n);
     if(b){b.className='nb'+(n===v?' on':'');}
@@ -156,6 +193,8 @@ function go(v){
   if(v==='log')log();
   if(v==='stats')statsPage();
   if(v==='equity')equityPage();
+  if(v==='review')reviewPage();
+  if(v==='goals')goalsPage();
 }
 
 function badge(r){
@@ -289,6 +328,18 @@ function form(){
   h+='</div>';
   h+='<div class="fi" style="margin-bottom:14px"><label>Emotionen</label><div class="tr">'+EMOS.map(function(e){return'<div class="tg'+(fm.emotions===e?' on':'')+'" onclick="selE(\''+e+'\')">'+e+'</div>';}).join('')+'</div></div>';
   h+='<div class="fi" style="margin-bottom:14px"><label>Notizen</label><textarea rows="3" oninput="fm.notes=this.value" style="resize:vertical">'+fm.notes+'</textarea></div>';
+
+  // Rating
+  h+='<div class="fi" style="margin-bottom:14px"><label>Trade Qualität (1-5 ⭐)</label>';
+  h+='<div class="stars">';
+  for(var i=1;i<=5;i++){h+='<span class="star'+(( fm.rating||0)>=i?' on':'')+'" onclick="setRating('+i+')">⭐</span>';}
+  h+='</div></div>';
+
+  // Screenshot
+  h+='<div class="fi" style="margin-bottom:14px"><label>Chart Screenshot</label>';
+  h+='<div class="sc-wrap" onclick="document.getElementById(\'sc-file\').click()">📸 Screenshot hochladen (PNG/JPG)</div>';
+  if(fm.screenshot){h+='<img src="'+fm.screenshot+'" class="sc-preview" style="max-height:200px;object-fit:contain;"/><button class="bg bd" style="margin-top:6px;font-size:10px" onclick="fm.screenshot=\'\';form()">✕ Entfernen</button>';}
+  h+='</div>';
   h+='<div class="fb">';
   h+='<div class="tog" onclick="togR()"><div class="tt'+(rul?' on':'')+'" id="tt"><div class="th'+(rul?' on':'')+'" id="th"></div></div><span style="font-family:\'JetBrains Mono\',monospace;font-size:10px;color:#888">ICT-Regeln befolgt</span></div>';
   h+='<div class="fw">'+(editId!==null?'<button class="bg" onclick="canc()">Abbrechen</button>':'')+'<button class="bp" onclick="sub()">'+(editId!==null?'Speichern':'Trade hinzufügen')+'</button></div>';
@@ -609,6 +660,126 @@ function importJSON(input){
   };
   reader.readAsText(file);
   input.value='';
+}
+
+function setRating(r){fm.rating=r;document.querySelectorAll('.star').forEach(function(s,i){s.className='star'+(i<r?' on':'');});}
+
+function loadScreenshot(input){
+  var file=input.files[0]; if(!file)return;
+  var reader=new FileReader();
+  reader.onload=function(e){fm.screenshot=e.target.result;form();};
+  reader.readAsDataURL(file);
+  input.value='';
+}
+
+// ─── WOCHEN REVIEW ────────────────────────────────────────────
+function getWeekDates(offset){
+  var now=new Date();
+  var day=now.getDay()||7;
+  var mon=new Date(now); mon.setDate(now.getDate()-day+1+(offset*7));
+  var days=[];
+  for(var i=0;i<5;i++){var d=new Date(mon);d.setDate(mon.getDate()+i);days.push(d);}
+  return days;
+}
+function fmtDate(d){return d.toISOString().slice(0,10);}
+function fmtLabel(d){return ['Mo','Di','Mi','Do','Fr'][d.getDay()-1]+' '+d.getDate()+'.'+(d.getMonth()+1)+'.';}
+
+function reviewPage(){
+  var el=document.getElementById('review');
+  var days=getWeekDates(weekOffset);
+  var weekStart=fmtDate(days[0]);
+  var weekEnd=fmtDate(days[4]);
+  var reviews=JSON.parse(localStorage.getItem(REVIEW_KEY)||'{}');
+
+  var h='<div class="card"><div class="st">📅 Wochen-Review';
+  h+='<span style="font-family:\'JetBrains Mono\',monospace;font-size:11px;color:#555">'+weekStart+' – '+weekEnd+'</span></div>';
+  h+='<div class="week-nav">';
+  h+='<button onclick="weekOffset--;go(\'review\')">← Vorwoche</button>';
+  h+='<span>KW '+weekStart+'</span>';
+  h+='<button onclick="weekOffset++;go(\'review\')"'+(weekOffset>=0?' disabled style="opacity:0.3"':'')+'>Nächste →</button>';
+  h+='</div>';
+
+  days.forEach(function(d){
+    var dk=fmtDate(d);
+    var dayTrades=trades.filter(function(t){return t.date===dk;});
+    var wins=dayTrades.filter(function(t){return t.result==='Win';}).length;
+    var losses=dayTrades.filter(function(t){return t.result==='Loss';}).length;
+    var pnl=dayTrades.reduce(function(s,t){return s+(parseFloat(t.pnl)||0);},0);
+    h+='<div class="week-day">';
+    h+='<div class="week-day-header">'+fmtLabel(d);
+    if(dayTrades.length){h+=' — '+dayTrades.length+' Trade(s) · '+wins+'W/'+losses+'L · <span style="color:'+(pnl>=0?'#6bc47a':'#c46b6b')+'">'+(pnl>=0?'+':'')+pnl.toFixed(2)+'R</span>';}
+    else{h+=' — kein Trade';}
+    h+='</div>';
+    h+='<textarea class="review-ta" placeholder="Was lief gut? Was nicht? Learnings..." onchange="saveReview(\''+dk+'\',this.value)">'+( reviews[dk]||'')+'</textarea>';
+    h+='</div>';
+  });
+
+  // Wochen-Zusammenfassung
+  var allWeekTrades=trades.filter(function(t){return t.date>=weekStart&&t.date<=weekEnd;});
+  var wPnl=allWeekTrades.reduce(function(s,t){return s+(parseFloat(t.pnl)||0);},0);
+  var wWins=allWeekTrades.filter(function(t){return t.result==='Win';}).length;
+  if(allWeekTrades.length){
+    h+='<div style="margin-top:12px;padding:12px;background:#14141e;border-radius:8px;font-family:\'JetBrains Mono\',monospace;font-size:11px;">';
+    h+='Woche gesamt: <span style="color:#c9a84c">'+allWeekTrades.length+' Trades</span> · ';
+    h+='<span style="color:#6bc47a">'+wWins+' Wins</span> · ';
+    h+='<span style="color:'+(wPnl>=0?'#6bc47a':'#c46b6b')+'">'+(wPnl>=0?'+':'')+wPnl.toFixed(2)+'R</span></div>';
+  }
+  h+='</div>';
+  el.innerHTML=h;
+}
+
+function saveReview(date,text){
+  var reviews=JSON.parse(localStorage.getItem(REVIEW_KEY)||'{}');
+  reviews[date]=text;
+  localStorage.setItem(REVIEW_KEY,JSON.stringify(reviews));
+}
+
+// ─── ZIELE ────────────────────────────────────────────────────
+function goalsPage(){
+  var el=document.getElementById('goals');
+  var goals=JSON.parse(localStorage.getItem(GOALS_KEY)||'{}');
+  var now=new Date();
+  var monthStart=now.getFullYear()+'-'+(now.getMonth()+1<10?'0':'')+(now.getMonth()+1)+'-01';
+  var monthEnd=now.getFullYear()+'-'+(now.getMonth()+1<10?'0':'')+(now.getMonth()+1)+'-31';
+  var monthTrades=trades.filter(function(t){return t.date>=monthStart&&t.date<=monthEnd&&(t.result==='Win'||t.result==='Loss');});
+  var monthWins=monthTrades.filter(function(t){return t.result==='Win';}).length;
+  var monthPnl=monthTrades.reduce(function(s,t){return s+(parseFloat(t.pnl)||0);},0);
+  var monthWR=monthTrades.length?Math.round(monthWins/monthTrades.length*100):0;
+
+  function goalRow(label,current,target,unit,key){
+    var pct=target>0?Math.min(100,Math.round(current/target*100)):0;
+    var col=pct>=100?'#6bc47a':pct>=50?'#c9a84c':'#c46b6b';
+    return '<div class="goal-row">'+
+      '<span class="goal-label">'+label+'</span>'+
+      '<div class="goal-prog"><div class="goal-fill" style="width:'+pct+'%;background:'+col+'"></div></div>'+
+      '<span class="goal-val">'+current+(unit||'')+' / <input class="goal-input" type="number" value="'+(goals[key]||0)+'" onchange="saveGoal(\''+key+'\',this.value)" style="width:55px"/>'+( unit||'')+'</span>'+
+    '</div>';
+  }
+
+  var h='<div class="card"><div class="st">🎯 Monatsziele <span style="font-family:\'JetBrains Mono\',monospace;font-size:11px;color:#555">'+(now.toLocaleString('de',{month:'long'})+' '+now.getFullYear())+'</span></div>';
+  h+='<div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;color:#555;margin-bottom:14px">Trag deine Ziele ein — der Fortschritt wird automatisch berechnet.</div>';
+  h+=goalRow('Trades gesamt',monthTrades.length,goals.trades||20,'',('trades'));
+  h+=goalRow('Winrate',monthWR,goals.wr||60,'%',('wr'));
+  h+=goalRow('P&L in R',parseFloat(monthPnl.toFixed(2)),goals.pnl||10,'R',('pnl'));
+  h+=goalRow('Wins',monthWins,goals.wins||12,'',('wins'));
+  h+='</div>';
+
+  // Monat Übersicht
+  h+='<div class="card"><div class="st">📊 Dieser Monat</div>';
+  h+='<div class="sgrid">';
+  h+='<div class="stat"><div class="sv">'+monthTrades.length+'</div><div class="sl">Trades</div></div>';
+  h+='<div class="stat"><div class="sv '+(monthWR>=50?'g':'r')+'">'+monthWR+'%</div><div class="sl">Winrate</div></div>';
+  h+='<div class="stat"><div class="sv g">'+monthWins+'</div><div class="sl">Wins</div></div>';
+  h+='<div class="stat"><div class="sv '+(monthPnl>=0?'g':'r')+'">'+(monthPnl>=0?'+':'')+monthPnl.toFixed(2)+'R</div><div class="sl">P&L</div></div>';
+  h+='</div></div>';
+
+  el.innerHTML=h;
+}
+
+function saveGoal(key,val){
+  var goals=JSON.parse(localStorage.getItem(GOALS_KEY)||'{}');
+  goals[key]=parseFloat(val)||0;
+  localStorage.setItem(GOALS_KEY,JSON.stringify(goals));
 }
 
 load();
