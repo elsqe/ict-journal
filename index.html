@@ -111,6 +111,7 @@ tr:hover td{background:#12121e;}
     <button class="nb" id="btn-new" onclick="go('new')">✏️ Erfassen</button>
     <button class="nb" id="btn-log" onclick="go('log')">📋 Log</button>
     <button class="nb" id="btn-stats" onclick="go('stats')">🔍 Statistiken</button>
+    <button class="nb" id="btn-equity" onclick="go('equity')">📈 Equity</button>
   </div>
   <div id="ss" class="ss"></div>
 </div>
@@ -119,6 +120,8 @@ tr:hover td{background:#12121e;}
   <div id="new" style="display:none"></div>
   <div id="log" style="display:none"></div>
   <div id="stats" style="display:none"></div>
+  <div id="equity" style="display:none"></div>
+  <input type="file" id="imp-file" accept=".json" style="display:none" onchange="importJSON(this)"/>
 </div>
 
 <script>
@@ -143,7 +146,7 @@ function save(){
 
 function go(v){
   cur=v;
-  ['dashboard','new','log','stats'].forEach(function(n){
+  ['dashboard','new','log','stats','equity'].forEach(function(n){
     document.getElementById(n).style.display=n===v?'':'none';
     var b=document.getElementById('btn-'+n);
     if(b){b.className='nb'+(n===v?' on':'');}
@@ -152,6 +155,7 @@ function go(v){
   if(v==='new')form();
   if(v==='log')log();
   if(v==='stats')statsPage();
+  if(v==='equity')equityPage();
 }
 
 function badge(r){
@@ -450,6 +454,161 @@ function statsPage(){
   }
 
   el.innerHTML=h;
+}
+
+// ─── EQUITY KURVE ─────────────────────────────────────────────
+function equityPage(){
+  var el=document.getElementById('equity');
+  var closed=trades.filter(function(t){return t.result==='Win'||t.result==='Loss'||t.result==='Breakeven';});
+  closed.sort(function(a,b){return a.date>b.date?1:-1;});
+
+  if(!closed.length){
+    el.innerHTML='<div class="card"><div class="st">📈 Equity Kurve</div><div class="no-data">📭 Noch keine abgeschlossenen Trades.<br>Erfasse Trades um deine Equity Kurve zu sehen.</div></div>';
+    return;
+  }
+
+  // Build equity data
+  var points=[{label:'Start',eq:0}];
+  var running=0;
+  closed.forEach(function(t){
+    running+=parseFloat(t.pnl)||0;
+    points.push({label:t.date.slice(5),eq:parseFloat(running.toFixed(2))});
+  });
+
+  var maxEq=Math.max.apply(null,points.map(function(p){return p.eq;}));
+  var minEq=Math.min.apply(null,points.map(function(p){return p.eq;}));
+  var finalEq=points[points.length-1].eq;
+  var maxDD=0; var peak=0;
+  points.forEach(function(p){if(p.eq>peak)peak=p.eq; var dd=peak-p.eq; if(dd>maxDD)maxDD=dd;});
+  var bestTrade=closed.reduce(function(best,t){return (parseFloat(t.pnl)||0)>(parseFloat(best.pnl)||0)?t:best;},closed[0]);
+  var worstTrade=closed.reduce(function(worst,t){return (parseFloat(t.pnl)||0)<(parseFloat(worst.pnl)||0)?t:worst;},closed[0]);
+
+  var h='<div class="card">';
+  h+='<div class="st">📈 Equity Kurve <span style="font-family:\'JetBrains Mono\',monospace;font-size:13px;color:'+(finalEq>=0?'#6bc47a':'#c46b6b')+'">'+(finalEq>=0?'+':'')+finalEq+'R</span></div>';
+  h+='<canvas id="eq-canvas" class="eq-canvas"></canvas>';
+  h+='<div class="eq-stats">';
+  h+='<div class="eq-stat">Max Drawdown: <span style="color:#c46b6b">'+maxDD.toFixed(2)+'R</span></div>';
+  h+='<div class="eq-stat">Bester Trade: <span style="color:#6bc47a">+'+(parseFloat(bestTrade.pnl)||0).toFixed(2)+'R</span> ('+bestTrade.pair+')</div>';
+  h+='<div class="eq-stat">Schlechtester: <span style="color:#c46b6b">'+(parseFloat(worstTrade.pnl)||0).toFixed(2)+'R</span> ('+worstTrade.pair+')</div>';
+  h+='<div class="eq-stat">Trades: <span>'+closed.length+'</span></div>';
+  h+='</div></div>';
+
+  // Export/Import card
+  h+='<div class="card"><div class="st">💾 Backup</div>';
+  h+='<div style="font-family:\'JetBrains Mono\',monospace;font-size:11px;color:#666;margin-bottom:10px">Exportiere deine Trades als JSON-Datei um sie zu sichern oder auf ein anderes Gerät zu übertragen.</div>';
+  h+='<div class="exim-row">';
+  h+='<button class="exim-btn" onclick="exportJSON()">📤 Exportieren (JSON)</button>';
+  h+='<button class="exim-btn imp" onclick="document.getElementById(\'imp-file\').click()">📥 Importieren (JSON)</button>';
+  h+='</div></div>';
+
+  el.innerHTML=h;
+
+  // Draw canvas
+  requestAnimationFrame(function(){
+    var canvas=document.getElementById('eq-canvas');
+    if(!canvas)return;
+    var dpr=window.devicePixelRatio||1;
+    var W=canvas.getBoundingClientRect().width;
+    var H=200;
+    canvas.width=W*dpr; canvas.height=H*dpr;
+    var ctx=canvas.getContext('2d');
+    ctx.scale(dpr,dpr);
+
+    var PAD={top:16,right:16,bottom:28,left:48};
+    var cw=W-PAD.left-PAD.right;
+    var ch=H-PAD.top-PAD.bottom;
+    var n=points.length;
+    var range=Math.max(0.1,maxEq-minEq);
+    var padR=range*0.1;
+    var lo=minEq-padR, hi=maxEq+padR;
+
+    function toX(i){return PAD.left+cw*(i/(n-1));}
+    function toY(v){return PAD.top+ch-((v-lo)/(hi-lo))*ch;}
+
+    // Background
+    ctx.fillStyle='#08080f'; ctx.fillRect(0,0,W,H);
+
+    // Zero line
+    var zeroY=toY(0);
+    ctx.strokeStyle='rgba(255,255,255,0.08)'; ctx.lineWidth=1; ctx.setLineDash([4,4]);
+    ctx.beginPath(); ctx.moveTo(PAD.left,zeroY); ctx.lineTo(W-PAD.right,zeroY); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle='#333'; ctx.font='9px JetBrains Mono,monospace'; ctx.textAlign='right';
+    ctx.fillText('0',PAD.left-4,zeroY+3);
+
+    // Y labels
+    [lo,hi].forEach(function(v){
+      var y=toY(v);
+      ctx.fillStyle='#333'; ctx.font='9px JetBrains Mono,monospace'; ctx.textAlign='right';
+      ctx.fillText(v.toFixed(1)+'R',PAD.left-4,y+3);
+    });
+
+    // Fill gradient
+    var grad=ctx.createLinearGradient(0,PAD.top,0,H-PAD.bottom);
+    grad.addColorStop(0,finalEq>=0?'rgba(107,196,122,0.25)':'rgba(196,107,107,0.25)');
+    grad.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.beginPath();
+    ctx.moveTo(toX(0),toY(points[0].eq));
+    points.forEach(function(p,i){ctx.lineTo(toX(i),toY(p.eq));});
+    ctx.lineTo(toX(n-1),H-PAD.bottom);
+    ctx.lineTo(toX(0),H-PAD.bottom);
+    ctx.closePath();
+    ctx.fillStyle=grad; ctx.fill();
+
+    // Line
+    ctx.beginPath();
+    ctx.strokeStyle=finalEq>=0?'#6bc47a':'#c46b6b';
+    ctx.lineWidth=2; ctx.lineJoin='round';
+    points.forEach(function(p,i){i===0?ctx.moveTo(toX(i),toY(p.eq)):ctx.lineTo(toX(i),toY(p.eq));});
+    ctx.stroke();
+
+    // Dots + labels
+    var step=Math.max(1,Math.floor(n/8));
+    points.forEach(function(p,i){
+      ctx.beginPath();
+      ctx.arc(toX(i),toY(p.eq),3,0,Math.PI*2);
+      ctx.fillStyle=p.eq>=0?'#6bc47a':'#c46b6b';
+      ctx.fill();
+      if(i%step===0){
+        ctx.fillStyle='#444'; ctx.font='8px JetBrains Mono,monospace'; ctx.textAlign='center';
+        ctx.fillText(p.label,toX(i),H-PAD.bottom+14);
+      }
+    });
+  });
+}
+
+// ─── EXPORT / IMPORT ──────────────────────────────────────────
+function exportJSON(){
+  if(!trades.length){alert('Keine Trades zum Exportieren.');return;}
+  var data=JSON.stringify({version:'ict-v2',exported:new Date().toISOString(),trades:trades},null,2);
+  var blob=new Blob([data],{type:'application/json'});
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement('a');
+  a.href=url; a.download='ict-journal-'+new Date().toISOString().slice(0,10)+'.json';
+  a.click(); URL.revokeObjectURL(url);
+}
+
+function importJSON(input){
+  var file=input.files[0]; if(!file)return;
+  var reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      var data=JSON.parse(e.target.result);
+      var imported=data.trades||data;
+      if(!Array.isArray(imported))throw new Error('Ungültiges Format');
+      if(!confirm(''+imported.length+' Trades importieren? Bestehende Trades bleiben erhalten.'))return;
+      var existing=trades.map(function(t){return t.id;});
+      var added=0;
+      imported.forEach(function(t){
+        if(!existing.includes(t.id)){trades.push(t);added++;}
+      });
+      save();
+      alert(added+' neue Trades importiert!');
+      go('equity');
+    }catch(err){alert('Fehler beim Importieren: '+err.message);}
+  };
+  reader.readAsText(file);
+  input.value='';
 }
 
 load();
