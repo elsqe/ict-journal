@@ -74,6 +74,20 @@ tr:hover td{background:#12121e;}
 @keyframes spin{to{transform:rotate(360deg);}}
 
 @media(max-width:560px){.fg{grid-template-columns:1fr;}th:nth-child(n+4),td:nth-child(n+4){display:none;}.tv-wrap{height:300px;}}
+
+/* Stats */
+.stat-grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px;}
+@media(max-width:560px){.stat-grid2{grid-template-columns:1fr;}}
+.srow{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid #14141e;gap:8px;}
+.srow:last-child{border:none;}
+.srow-label{font-family:'JetBrains Mono',monospace;font-size:11px;color:#888;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.srow-bar{flex:1;height:5px;background:#1e1e35;border-radius:4px;overflow:hidden;margin:0 10px;}
+.srow-fill{height:100%;border-radius:4px;background:linear-gradient(90deg,#c9a84c,#6bc47a);}
+.srow-val{font-family:'JetBrains Mono',monospace;font-size:11px;color:#c9a84c;text-align:right;min-width:50px;}
+.srow-val.g{color:#6bc47a;} .srow-val.r{color:#c46b6b;}
+.insight{background:#14141e;border:1px solid #c9a84c33;border-radius:8px;padding:12px 14px;margin-top:10px;font-family:'JetBrains Mono',monospace;font-size:11px;color:#888;line-height:1.7;}
+.insight strong{color:#c9a84c;}
+.no-data{text-align:center;padding:30px;color:#444;font-family:'JetBrains Mono',monospace;font-size:11px;}
 </style>
 </head>
 <body>
@@ -83,6 +97,7 @@ tr:hover td{background:#12121e;}
     <button class="nb on" id="btn-dashboard" onclick="go('dashboard')">📊 Dashboard</button>
     <button class="nb" id="btn-new" onclick="go('new')">✏️ Erfassen</button>
     <button class="nb" id="btn-log" onclick="go('log')">📋 Log</button>
+    <button class="nb" id="btn-stats" onclick="go('stats')">🔍 Statistiken</button>
   </div>
   <div id="ss" class="ss"></div>
 </div>
@@ -90,6 +105,7 @@ tr:hover td{background:#12121e;}
   <div id="dashboard"></div>
   <div id="new" style="display:none"></div>
   <div id="log" style="display:none"></div>
+  <div id="stats" style="display:none"></div>
 </div>
 
 <script>
@@ -114,7 +130,7 @@ function save(){
 
 function go(v){
   cur=v;
-  ['dashboard','new','log'].forEach(function(n){
+  ['dashboard','new','log','stats'].forEach(function(n){
     document.getElementById(n).style.display=n===v?'':'none';
     var b=document.getElementById('btn-'+n);
     if(b){b.className='nb'+(n===v?' on':'');}
@@ -122,6 +138,7 @@ function go(v){
   if(v==='dashboard')dash();
   if(v==='new')form();
   if(v==='log')log();
+  if(v==='stats')statsPage();
 }
 
 function badge(r){
@@ -311,6 +328,116 @@ function log(){
 function setF(p){flt=p;log();}
 function del(id){if(!confirm('Löschen?'))return;trades=trades.filter(function(t){return t.id!==id;});save();log();}
 function ed(id){var t=trades.find(function(x){return x.id===id;});if(!t)return;fm=Object.assign({},t);editId=id;rul=t.followed_rules!==false;go('new');}
+
+function statsPage(){
+  var t=trades.filter(function(x){return x.result==='Win'||x.result==='Loss';});
+  var el=document.getElementById('stats');
+  if(!t.length){
+    el.innerHTML='<div class="card"><div class="st">🔍 Statistiken</div><div class="no-data">📭 Noch keine abgeschlossenen Trades (Win/Loss).<br>Erfasse mindestens einen Trade um Statistiken zu sehen.</div></div>';
+    return;
+  }
+
+  function wr(arr){
+    var w=arr.filter(function(x){return x.result==='Win';}).length;
+    return arr.length?Math.round(w/arr.length*100):0;
+  }
+  function avgRR(arr){
+    var v=arr.filter(function(x){return parseFloat(x.rr)>0;});
+    if(!v.length)return null;
+    return (v.reduce(function(s,x){return s+parseFloat(x.rr);},0)/v.length).toFixed(2);
+  }
+  function pnl(arr){
+    return arr.reduce(function(s,x){return s+(parseFloat(x.pnl)||0);},0).toFixed(2);
+  }
+
+  function makeRows(groups,label){
+    var keys=Object.keys(groups).filter(function(k){return groups[k].length>0;});
+    if(!keys.length)return '<div class="no-data">Keine Daten</div>';
+    var maxWr=Math.max.apply(null,keys.map(function(k){return wr(groups[k]);}));
+    return keys.sort(function(a,b){return wr(groups[b])-wr(groups[a]);}).map(function(k){
+      var arr=groups[k];
+      var w=wr(arr);
+      var rr=avgRR(arr)||'—';
+      var p=parseFloat(pnl(arr));
+      var pClass=p>=0?'g':'r';
+      return '<div class="srow">'+
+        '<span class="srow-label" title="'+k+'">'+k+'</span>'+
+        '<div class="srow-bar"><div class="srow-fill" style="width:'+( maxWr?Math.round(w/maxWr*100):0)+'%"></div></div>'+
+        '<span class="srow-val">'+w+'%</span>'+
+        '<span class="srow-val" style="min-width:40px;color:#666;font-size:10px">'+arr.length+'T</span>'+
+        '<span class="srow-val '+pClass+'" style="min-width:52px">'+(p>=0?'+':'')+p+'R</span>'+
+      '</div>';
+    }).join('');
+  }
+
+  // Group by session
+  var bySess={};
+  SESS.forEach(function(s){bySess[s]=t.filter(function(x){return x.session===s;});});
+
+  // Group by setup
+  var bySetup={};
+  SETS.forEach(function(s){bySetup[s]=t.filter(function(x){return x.setup===s;});});
+
+  // Group by pair
+  var byPair={};
+  PAIRS.forEach(function(p){byPair[p]=t.filter(function(x){return x.pair===p;});});
+
+  // Group by rules followed
+  var withRules=t.filter(function(x){return x.followed_rules!==false;});
+  var withoutRules=t.filter(function(x){return x.followed_rules===false;});
+  var wrWith=wr(withRules), wrWithout=wr(withoutRules);
+
+  // Best insight
+  var bestSess=Object.keys(bySess).filter(function(k){return bySess[k].length>0;}).sort(function(a,b){return wr(bySess[b])-wr(bySess[a]);})[0]||null;
+  var bestSetup=Object.keys(bySetup).filter(function(k){return bySetup[k].length>0;}).sort(function(a,b){return wr(bySetup[b])-wr(bySetup[a]);})[0]||null;
+  var bestPair=Object.keys(byPair).filter(function(k){return byPair[k].length>0;}).sort(function(a,b){return wr(byPair[b])-wr(byPair[a]);})[0]||null;
+
+  var insightText='';
+  if(bestSess)insightText+='Deine beste Session ist <strong>'+bestSess+'</strong> ('+wr(bySess[bestSess])+'% WR). ';
+  if(bestSetup)insightText+='Dein stärkstes Setup ist <strong>'+bestSetup+'</strong> ('+wr(bySetup[bestSetup])+'% WR). ';
+  if(withRules.length&&withoutRules.length){
+    insightText+='Mit ICT-Regeln: <strong>'+wrWith+'%</strong> WR — ohne Regeln: <strong>'+wrWithout+'%</strong> WR. ';
+    if(wrWith>wrWithout)insightText+='<strong style="color:#6bc47a">Die Regeln helfen dir! 💪</strong>';
+    else insightText+='<strong style="color:#c46b6b">Achtung: Ohne Regeln läuft es besser — überprüfe deine Strategie.</strong>';
+  }
+
+  var h='';
+
+  // Regelkonformität card
+  if(withRules.length||withoutRules.length){
+    h+='<div class="card"><div class="st">⚖️ ICT-Regeln Einfluss</div>';
+    h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">';
+    if(withRules.length){h+='<div class="stat"><div class="sv g">'+wrWith+'%</div><div class="sl">WR mit Regeln</div><div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;color:#555;margin-top:4px">'+withRules.length+' Trades</div></div>';}
+    if(withoutRules.length){h+='<div class="stat"><div class="sv r">'+wrWithout+'%</div><div class="sl">WR ohne Regeln</div><div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;color:#555;margin-top:4px">'+withoutRules.length+' Trades</div></div>';}
+    h+='</div></div>';
+  }
+
+  h+='<div class="stat-grid2">';
+
+  // Session
+  h+='<div class="card" style="margin:0"><div class="st" style="font-size:15px">🕐 Session</div>';
+  h+='<div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;color:#555;display:flex;gap:16px;margin-bottom:8px"><span>— WINRATE</span><span style="margin-left:auto">TRADES</span><span>P&L</span></div>';
+  h+=makeRows(bySess)+'</div>';
+
+  // Pair
+  h+='<div class="card" style="margin:0"><div class="st" style="font-size:15px">💱 Pair</div>';
+  h+='<div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;color:#555;display:flex;gap:16px;margin-bottom:8px"><span>— WINRATE</span><span style="margin-left:auto">TRADES</span><span>P&L</span></div>';
+  h+=makeRows(byPair)+'</div>';
+
+  h+='</div>';
+
+  // Setup
+  h+='<div class="card"><div class="st">🎯 Setup Performance</div>';
+  h+='<div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;color:#555;display:flex;gap:16px;margin-bottom:8px"><span>— WINRATE</span><span style="margin-left:auto">TRADES</span><span>P&L</span></div>';
+  h+=makeRows(bySetup)+'</div>';
+
+  // Insight
+  if(insightText){
+    h+='<div class="card"><div class="st">💡 Deine Erkenntnisse</div><div class="insight">'+insightText+'</div></div>';
+  }
+
+  el.innerHTML=h;
+}
 
 load();
 fm=nf();
